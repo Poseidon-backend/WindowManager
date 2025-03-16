@@ -16,9 +16,7 @@ fun Navigation() {
             InstructionScreen(navController)
         }
         composable("wifiscreen") {
-
             WifiScreen(navController)
         }
-
     }
 }

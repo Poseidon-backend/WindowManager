@@ -18,21 +18,21 @@ import android.net.wifi.WifiManager
 import androidx.core.content.ContextCompat
 import android.Manifest
 import android.content.pm.PackageManager
+import android.util.Log
 
 class WifiReceiverViewModel : ViewModel() {
     var wifiNetworks by mutableStateOf<List<ScanResult>>(emptyList())
     var isScanning by mutableStateOf(false)
     var serverResponse by mutableStateOf<WifiServerResponse?>(null)
-    var isWifiEnabled by mutableStateOf(false) // Добавляем состояние Wi-Fi
+    var isWifiEnabled by mutableStateOf(false)
 
     private val _wifiFlow = MutableStateFlow<List<ScanResult>>(emptyList())
     val wifiFlow: StateFlow<List<ScanResult>> = _wifiFlow
 
-    // Обновляем состояние Wi-Fi из WifiReceiver
     fun updateWifiState(enabled: Boolean) {
         isWifiEnabled = enabled
         if (!enabled && isScanning) {
-            stopWifiScan() // Останавливаем сканирование, если Wi-Fi выключен
+            stopWifiScan()
         }
     }
 
@@ -45,29 +45,40 @@ class WifiReceiverViewModel : ViewModel() {
             viewModelScope.launch {
                 val wifiManager = context.getSystemService(Context.WIFI_SERVICE) as WifiManager
                 isScanning = true
-                while (isScanning && isWifiEnabled) { // Проверяем оба условия
+                while (isScanning && isWifiEnabled) {
                     wifiManager.startScan()
                     val scanResults = wifiManager.scanResults
                     _wifiFlow.value = scanResults
-                    delay(10000) // Задержка 10 секунд
+                    delay(10000)
                 }
-                isScanning = false // Устанавливаем false, когда цикл завершен
+                isScanning = false
             }
         }
     }
 
-    fun stopWifiScan() {
-        isScanning = false // Метод для принудительной остановки
+    private fun stopWifiScan() {
+        isScanning = false
     }
 
     fun sendWifiCredentials(wifiData: WifiData) {
+        Log.d("WifiData", "Sending: SSID=${wifiData.ssid}, Password=${wifiData.password}")
         viewModelScope.launch {
             try {
                 val response = RetrofitInstance.api.connectToWiFi(wifiData)
-                serverResponse = if (response.isSuccessful) response.body()
-                else WifiServerResponse("error", "Ошибка: ${response.code()}")
+                if (response.isSuccessful) {
+                    val serverBody = response.body()
+                    Log.d("ServerResponse", "Received: ${serverBody?.toString()}")
+                    serverResponse =
+                        serverBody ?: WifiServerResponse("error", "Нет ответа от сервера")
+                } else {
+                    val errorBody = response.errorBody()?.string()
+                    Log.e("ServerError", "HTTP Error: ${response.code()} - $errorBody")
+                    serverResponse =
+                        WifiServerResponse("error", "Ошибка сервера: ${response.code()}")
+                }
             } catch (e: Exception) {
-                serverResponse = WifiServerResponse("error", "Ошибка: ${e.message}")
+                Log.e("NetworkError", "Exception: ${e.message}")
+                serverResponse = WifiServerResponse("error", "Ошибка сети: ${e.message}")
             }
         }
     }
