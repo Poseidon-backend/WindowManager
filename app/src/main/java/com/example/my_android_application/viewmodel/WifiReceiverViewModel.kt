@@ -48,7 +48,9 @@ class WifiReceiverViewModel : ViewModel() {
                 while (isScanning && isWifiEnabled) {
                     wifiManager.startScan()
                     val scanResults = wifiManager.scanResults
-                    _wifiFlow.value = scanResults
+                    val filteredResults = scanResults.filter { it.frequency in 2400..2500 }
+                    _wifiFlow.value = filteredResults
+                    wifiNetworks = filteredResults
                     delay(10000)
                 }
                 isScanning = false
